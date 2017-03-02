@@ -138,7 +138,7 @@ class OnboardingViewController: BaseViewController<OnboardingViewModel> {
 }
 
 protocol OnboardingFlowControllerType: FlowController {
-    func openRegionLanguage()
+    func openOptionPicker()
 }
 
 class OnboardingFlowController: OnboardingFlowControllerType {
@@ -155,9 +155,9 @@ class OnboardingFlowController: OnboardingFlowControllerType {
         configuration.navigationController?.viewControllers = [viewController]
     }
     
-    func openRegionLanguage() {
-        let regionLanguageConfiguration = FlowConfiguration(window: nil, navigationController: configuration.navigationController, parent: self)
-        childFlow = OptionPickerFlowController(configuration: regionLanguageConfiguration)
+    func openOptionPicker() {
+        let optionPickerConfiguration = FlowConfiguration(window: nil, navigationController: configuration.navigationController, parent: self)
+        childFlow = OptionPickerFlowController(configuration: optionPickerConfiguration)
         childFlow?.start()
     }
 }
@@ -165,8 +165,8 @@ class OnboardingFlowController: OnboardingFlowControllerType {
 //: Option Picker Flow
 
 protocol OptionPickerFlowControllerType: FlowController {
-    func openRegion()
-    func openLanguage()
+    func openOptionA()
+    func openOptionB()
     func finish()
 }
 
@@ -206,15 +206,15 @@ class OptionPickerFlowController: OptionPickerFlowControllerType {
         configuration.navigationController?.present(navigationController, animated: true)
     }
     
-    func openRegion() {
-        let regionConfiguration = FlowConfiguration(window: nil, navigationController: configuration.navigationController, parent: self)
-        childFlow = OptionBFlowController(configuration: regionConfiguration)
+    func openOptionA() {
+        let optionAConfiguration = FlowConfiguration(window: nil, navigationController: configuration.navigationController, parent: self)
+        childFlow = OptionBFlowController(configuration: optionAConfiguration)
         childFlow?.start()
     }
     
-    func openLanguage() {
-        let languageConfiguration = FlowConfiguration(window: nil, navigationController: configuration.navigationController, parent: self)
-        childFlow = OptionAFlowController(configuration: languageConfiguration)
+    func openOptionB() {
+        let optionBConfiguration = FlowConfiguration(window: nil, navigationController: configuration.navigationController, parent: self)
+        childFlow = OptionAFlowController(configuration: optionBConfiguration)
         childFlow?.start()
     }
     
