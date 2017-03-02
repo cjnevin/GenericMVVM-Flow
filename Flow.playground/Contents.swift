@@ -27,7 +27,7 @@ enum FlowType {
 struct FlowConfiguration {
     let window: UIWindow?
     let navigationController: UINavigationController?
-    let parent: FlowController?
+    let parent: FlowControllerType?
     
     var type: FlowType {
         guard window == nil else {
@@ -37,12 +37,29 @@ struct FlowConfiguration {
     }
 }
 
-protocol FlowController {
+protocol FlowControllerType {
     init(configuration: FlowConfiguration)
     func start()
 }
 
 //: BaseViewController Implementation of ViewType
+
+class BaseFlowController: FlowControllerType {
+    let configuration: FlowConfiguration
+    var childFlow: FlowControllerType?
+    
+    required init(configuration: FlowConfiguration) {
+        self.configuration = configuration
+    }
+    
+    func start() {
+        fatalError("start() has not been implemented")
+    }
+    
+    func makeChildConfiguration() -> FlowConfiguration {
+        return FlowConfiguration(window: nil, navigationController: configuration.navigationController, parent: self)
+    }
+}
 
 class BaseViewController<T: ViewModelType>: UIViewController, ViewType {
     typealias ViewModel = T
@@ -71,19 +88,10 @@ class BaseViewController<T: ViewModelType>: UIViewController, ViewType {
 
 //: Main Flow
 
-class MainFlowController: FlowController {
-    private let configuration: FlowConfiguration
-    var childFlow : FlowController?
-    
+class MainFlowController: BaseFlowController {
     private var onboarded: Bool = false
     
-    
-    required init(configuration: FlowConfiguration) {
-        assert(configuration.type == .main)
-        self.configuration = configuration
-    }
-    
-    func start() {
+    override func start() {
         let navigationController = UINavigationController()
         configuration.window?.rootViewController = navigationController
         configuration.window?.makeKeyAndVisible()
@@ -102,16 +110,52 @@ class MainFlowController: FlowController {
 
 //: Tabbed Flow
 
-class TabbedFlowController: FlowController {
-    private let configuration: FlowConfiguration
-    var childFlows: [FlowController]?
+class TabbedFlowController: BaseFlowController {
+    private let tabBarController = UITabBarController()
+    var childFlows: [FlowControllerType]?
     
-    required init(configuration: FlowConfiguration) {
-        assert(configuration.type == .main)
-        self.configuration = configuration
+    override func start() {
+        let tabANavigationController = UINavigationController()
+        let tabAConfiguration = FlowConfiguration(window: nil, navigationController: tabANavigationController, parent: self)
+        tabBarController.setViewControllers([tabANavigationController], animated: false)
+        
+        childFlows = [TabAFlowController(configuration: tabAConfiguration)]
+        childFlows?.forEach({ $0.start() })
+    }
+}
+
+protocol TabAFlowControllerType: FlowControllerType {
+    func showDetail()
+}
+
+class TabAFlowController: BaseFlowController, TabAFlowControllerType {
+    override func start() {
+        let viewModel = TabAViewModel(flowController: self)
+        let viewController = TabAViewController(viewModel: viewModel)
+        configuration.navigationController?.viewControllers = [viewController]
     }
     
-    func start() { }
+    func showDetail() { }
+}
+
+class TabAViewModel: ViewModelType {
+    typealias Input = Int
+    typealias Output = Int
+    
+    private let flowController: TabAFlowControllerType
+    
+    init(flowController: TabAFlowControllerType) {
+        self.flowController = flowController
+    }
+    
+    func transform(input: Int) -> Int {
+        return 0
+    }
+}
+
+class TabAViewController: BaseViewController<TabAViewModel> {
+    override func layout() { }
+    override func bind() { }
 }
 
 //: Onboarding Flow
@@ -137,34 +181,26 @@ class OnboardingViewController: BaseViewController<OnboardingViewModel> {
     override func bind() { }
 }
 
-protocol OnboardingFlowControllerType: FlowController {
+protocol OnboardingFlowControllerType: FlowControllerType {
     func openOptionPicker()
 }
 
-class OnboardingFlowController: OnboardingFlowControllerType {
-    private let configuration: FlowConfiguration
-    var childFlow : FlowController?
-    
-    required init(configuration: FlowConfiguration) {
-        self.configuration = configuration
-    }
-
-    func start() {
+class OnboardingFlowController: BaseFlowController, OnboardingFlowControllerType {
+    override func start() {
         let viewModel = OnboardingViewModel(flowController: self)
         let viewController = OnboardingViewController(viewModel: viewModel)
         configuration.navigationController?.viewControllers = [viewController]
     }
     
     func openOptionPicker() {
-        let optionPickerConfiguration = FlowConfiguration(window: nil, navigationController: configuration.navigationController, parent: self)
-        childFlow = OptionPickerFlowController(configuration: optionPickerConfiguration)
+        childFlow = OptionPickerFlowController(configuration: makeChildConfiguration())
         childFlow?.start()
     }
 }
 
 //: Option Picker Flow
 
-protocol OptionPickerFlowControllerType: FlowController {
+protocol OptionPickerFlowControllerType: FlowControllerType {
     func openOptionA()
     func openOptionB()
     func finish()
@@ -190,16 +226,10 @@ class OptionPickerViewController: BaseViewController<OptionPickerViewModel> {
     override func bind() { }
 }
 
-class OptionPickerFlowController: OptionPickerFlowControllerType {
-    private let configuration: FlowConfiguration
+class OptionPickerFlowController: BaseFlowController, OptionPickerFlowControllerType {
     private let navigationController = UINavigationController()
-    var childFlow: FlowController?
     
-    required init(configuration: FlowConfiguration) {
-        self.configuration = configuration
-    }
-    
-    func start() {
+    override func start() {
         let viewModel = OptionPickerViewModel(flowController: self)
         let viewController = OptionPickerViewController(viewModel: viewModel)
         navigationController.viewControllers = [viewController]
@@ -207,14 +237,12 @@ class OptionPickerFlowController: OptionPickerFlowControllerType {
     }
     
     func openOptionA() {
-        let optionAConfiguration = FlowConfiguration(window: nil, navigationController: configuration.navigationController, parent: self)
-        childFlow = OptionBFlowController(configuration: optionAConfiguration)
+        childFlow = OptionBFlowController(configuration: makeChildConfiguration())
         childFlow?.start()
     }
     
     func openOptionB() {
-        let optionBConfiguration = FlowConfiguration(window: nil, navigationController: configuration.navigationController, parent: self)
-        childFlow = OptionAFlowController(configuration: optionBConfiguration)
+        childFlow = OptionAFlowController(configuration: makeChildConfiguration())
         childFlow?.start()
     }
     
@@ -226,7 +254,7 @@ class OptionPickerFlowController: OptionPickerFlowControllerType {
 
 //: Option A Flow
 
-protocol OptionAFlowControllerType: FlowController {
+protocol OptionAFlowControllerType: FlowControllerType {
     func finish()
 }
 
@@ -250,14 +278,8 @@ class OptionAViewController: BaseViewController<OptionAViewModel> {
     override func bind() { }
 }
 
-class OptionAFlowController: OptionAFlowControllerType {
-    private let configuration: FlowConfiguration
-    
-    required init(configuration: FlowConfiguration) {
-        self.configuration = configuration
-    }
-    
-    func start() {
+class OptionAFlowController: BaseFlowController, OptionAFlowControllerType {
+    override func start() {
         let viewModel = OptionAViewModel(flowController: self)
         let viewController = OptionAViewController(viewModel: viewModel)
         configuration.navigationController?.pushViewController(viewController, animated: true)
@@ -270,7 +292,7 @@ class OptionAFlowController: OptionAFlowControllerType {
 
 //: Option B Flow
 
-protocol OptionBFlowControllerType: FlowController {
+protocol OptionBFlowControllerType: FlowControllerType {
     func finish()
 }
 
@@ -294,14 +316,8 @@ class OptionBViewController: BaseViewController<OptionBViewModel> {
     override func bind() { }
 }
 
-class OptionBFlowController: OptionBFlowControllerType {
-    private let configuration: FlowConfiguration
-    
-    required init(configuration: FlowConfiguration) {
-        self.configuration = configuration
-    }
-    
-    func start() {
+class OptionBFlowController: BaseFlowController, OptionBFlowControllerType {
+    override func start() {
         let viewModel = OptionBViewModel(flowController: self)
         let viewController = OptionBViewController(viewModel: viewModel)
         configuration.navigationController?.pushViewController(viewController, animated: true)
