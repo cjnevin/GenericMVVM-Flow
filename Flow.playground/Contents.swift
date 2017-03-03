@@ -18,35 +18,28 @@ protocol ViewType {
     func layout()
 }
 
-enum FlowType {
-    case main
-    case navigation
-}
-
-struct FlowConfiguration {
+struct WireframeConfiguration {
     let window: UIWindow?
     let navigationController: UINavigationController?
-    let parent: FlowControllerType?
+    let parent: WireframeType?
     
-    var type: FlowType {
-        guard window == nil else {
-            return .main
-        }
-        return .navigation
+    init(window: UIWindow? = nil, navigationController: UINavigationController? = nil, parent: WireframeType? = nil) {
+        assert(window != nil || (navigationController != nil && parent != nil))
+        self.window = window
+        self.navigationController = navigationController
+        self.parent = parent
     }
 }
 
-protocol FlowControllerType {
-    init(configuration: FlowConfiguration)
+protocol WireframeType {
+    init(configuration: WireframeConfiguration)
     func start()
 }
 
-//: BaseViewController Implementation of ViewType
-
-class BaseFlowController: FlowControllerType {
-    let configuration: FlowConfiguration
+class BaseWireframe: WireframeType {
+    let configuration: WireframeConfiguration
     
-    required init(configuration: FlowConfiguration) {
+    required init(configuration: WireframeConfiguration) {
         self.configuration = configuration
     }
     
@@ -54,10 +47,12 @@ class BaseFlowController: FlowControllerType {
         fatalError("start() has not been implemented")
     }
     
-    func makeChildConfiguration() -> FlowConfiguration {
-        return FlowConfiguration(window: nil, navigationController: configuration.navigationController, parent: self)
+    func makeChildConfiguration() -> WireframeConfiguration {
+        return WireframeConfiguration(navigationController: configuration.navigationController, parent: self)
     }
 }
+
+//: BaseViewController Implementation of ViewType
 
 class BaseViewController<T: ViewModelType>: UIViewController, ViewType {
     typealias ViewModel = T
@@ -84,11 +79,11 @@ class BaseViewController<T: ViewModelType>: UIViewController, ViewType {
     }
 }
 
-//: Main Flow
+//: Main Wireframe
 
-class MainFlowController: BaseFlowController {
+class MainWireframe: BaseWireframe {
     private var onboarded: Bool = false
-    private var childFlow: FlowControllerType?
+    private var childWireframe: WireframeType?
     
     override func start() {
         let navigationController = UINavigationController()
@@ -96,40 +91,40 @@ class MainFlowController: BaseFlowController {
         configuration.window?.makeKeyAndVisible()
         
         if !onboarded {
-            let onboardingConfiguration = FlowConfiguration(window: nil, navigationController: navigationController, parent: self)
-            childFlow = OnboardingFlowController(configuration: onboardingConfiguration)
-            childFlow?.start()
+            let onboardingConfiguration = WireframeConfiguration(navigationController: navigationController, parent: self)
+            childWireframe = OnboardingWireframe(configuration: onboardingConfiguration)
+            childWireframe?.start()
         } else {
-            let tabbedConfiguration = FlowConfiguration(window: nil, navigationController: navigationController, parent: self)
-            childFlow = TabbedFlowController(configuration: tabbedConfiguration)
-            childFlow?.start()
+            let tabbedConfiguration = WireframeConfiguration(navigationController: navigationController, parent: self)
+            childWireframe = TabbedWireframe(configuration: tabbedConfiguration)
+            childWireframe?.start()
         }
     }
 }
 
-//: Tabbed Flow
+//: Tabbed Wireframe
 
-class TabbedFlowController: BaseFlowController {
+class TabbedWireframe: BaseWireframe {
     private let tabBarController = UITabBarController()
-    private var childFlows: [FlowControllerType]?
+    private var childWireframes: [WireframeType]?
     
     override func start() {
         let tabANavigationController = UINavigationController()
-        let tabAConfiguration = FlowConfiguration(window: nil, navigationController: tabANavigationController, parent: self)
+        let tabAConfiguration = WireframeConfiguration(navigationController: tabANavigationController, parent: self)
         tabBarController.setViewControllers([tabANavigationController], animated: false)
         
-        childFlows = [TabAFlowController(configuration: tabAConfiguration)]
-        childFlows?.forEach({ $0.start() })
+        childWireframes = [TabAWireframe(configuration: tabAConfiguration)]
+        childWireframes?.forEach({ $0.start() })
     }
 }
 
-protocol TabAFlowControllerType: FlowControllerType {
+protocol TabAWireframeType: WireframeType {
     func showDetail()
 }
 
-class TabAFlowController: BaseFlowController, TabAFlowControllerType {
+class TabAWireframe: BaseWireframe, TabAWireframeType {
     override func start() {
-        let viewModel = TabAViewModel(flowController: self)
+        let viewModel = TabAViewModel(wireframe: self)
         let viewController = TabAViewController(viewModel: viewModel)
         configuration.navigationController?.viewControllers = [viewController]
     }
@@ -141,10 +136,10 @@ class TabAViewModel: ViewModelType {
     typealias Input = Int
     typealias Output = Int
     
-    private let flowController: TabAFlowControllerType
+    private let wireframe: TabAWireframeType
     
-    init(flowController: TabAFlowControllerType) {
-        self.flowController = flowController
+    init(wireframe: TabAWireframeType) {
+        self.wireframe = wireframe
     }
     
     func transform(input: Int) -> Int {
@@ -157,16 +152,16 @@ class TabAViewController: BaseViewController<TabAViewModel> {
     override func bind() { }
 }
 
-//: Onboarding Flow
+//: Onboarding Wireframe
 
 class OnboardingViewModel: ViewModelType {
     typealias Input = Int
     typealias Output = Int
     
-    private let flowController: OnboardingFlowControllerType
+    private let wireframe: OnboardingWireframeType
     
-    init(flowController: OnboardingFlowControllerType) {
-        self.flowController = flowController
+    init(wireframe: OnboardingWireframeType) {
+        self.wireframe = wireframe
     }
     
     func transform(input: Int) -> Int {
@@ -180,28 +175,28 @@ class OnboardingViewController: BaseViewController<OnboardingViewModel> {
     override func bind() { }
 }
 
-protocol OnboardingFlowControllerType: FlowControllerType {
+protocol OnboardingWireframeType: WireframeType {
     func openOptionPicker()
 }
 
-class OnboardingFlowController: BaseFlowController, OnboardingFlowControllerType {
-    private var childFlow: FlowControllerType?
+class OnboardingWireframe: BaseWireframe, OnboardingWireframeType {
+    private var childWireframe: WireframeType?
     
     override func start() {
-        let viewModel = OnboardingViewModel(flowController: self)
+        let viewModel = OnboardingViewModel(wireframe: self)
         let viewController = OnboardingViewController(viewModel: viewModel)
         configuration.navigationController?.viewControllers = [viewController]
     }
     
     func openOptionPicker() {
-        childFlow = OptionPickerFlowController(configuration: makeChildConfiguration())
-        childFlow?.start()
+        childWireframe = OptionPickerWireframe(configuration: makeChildConfiguration())
+        childWireframe?.start()
     }
 }
 
-//: Option Picker Flow
+//: Option Picker Wireframe
 
-protocol OptionPickerFlowControllerType: FlowControllerType {
+protocol OptionPickerWireframeType: WireframeType {
     func openOptionA()
     func openOptionB()
     func finish()
@@ -211,10 +206,10 @@ class OptionPickerViewModel: ViewModelType {
     typealias Input = Int
     typealias Output = Int
     
-    private let flowController: OptionPickerFlowControllerType
+    private let wireframe: OptionPickerWireframeType
     
-    init(flowController: OptionPickerFlowControllerType) {
-        self.flowController = flowController
+    init(wireframe: OptionPickerWireframeType) {
+        self.wireframe = wireframe
     }
     
     func transform(input: Int) -> Int {
@@ -227,25 +222,25 @@ class OptionPickerViewController: BaseViewController<OptionPickerViewModel> {
     override func bind() { }
 }
 
-class OptionPickerFlowController: BaseFlowController, OptionPickerFlowControllerType {
+class OptionPickerWireframe: BaseWireframe, OptionPickerWireframeType {
     private let navigationController = UINavigationController()
-    private var childFlow: FlowControllerType?
+    private var childWireframe: WireframeType?
     
     override func start() {
-        let viewModel = OptionPickerViewModel(flowController: self)
+        let viewModel = OptionPickerViewModel(wireframe: self)
         let viewController = OptionPickerViewController(viewModel: viewModel)
         navigationController.viewControllers = [viewController]
         configuration.navigationController?.present(navigationController, animated: true)
     }
     
     func openOptionA() {
-        childFlow = OptionBFlowController(configuration: makeChildConfiguration())
-        childFlow?.start()
+        childWireframe = OptionBWireframe(configuration: makeChildConfiguration())
+        childWireframe?.start()
     }
     
     func openOptionB() {
-        childFlow = OptionAFlowController(configuration: makeChildConfiguration())
-        childFlow?.start()
+        childWireframe = OptionAWireframe(configuration: makeChildConfiguration())
+        childWireframe?.start()
     }
     
     func finish() {
@@ -254,9 +249,9 @@ class OptionPickerFlowController: BaseFlowController, OptionPickerFlowController
 }
 
 
-//: Option A Flow
+//: Option A Wireframe
 
-protocol OptionAFlowControllerType: FlowControllerType {
+protocol OptionAWireframeType: WireframeType {
     func finish()
 }
 
@@ -264,10 +259,10 @@ class OptionAViewModel: ViewModelType {
     typealias Input = Int
     typealias Output = Int
     
-    private let flowController: OptionAFlowControllerType
+    private let wireframe: OptionAWireframeType
     
-    init(flowController: OptionAFlowControllerType) {
-        self.flowController = flowController
+    init(wireframe: OptionAWireframeType) {
+        self.wireframe = wireframe
     }
     
     func transform(input: Int) -> Int {
@@ -280,9 +275,9 @@ class OptionAViewController: BaseViewController<OptionAViewModel> {
     override func bind() { }
 }
 
-class OptionAFlowController: BaseFlowController, OptionAFlowControllerType {
+class OptionAWireframe: BaseWireframe, OptionAWireframeType {
     override func start() {
-        let viewModel = OptionAViewModel(flowController: self)
+        let viewModel = OptionAViewModel(wireframe: self)
         let viewController = OptionAViewController(viewModel: viewModel)
         configuration.navigationController?.pushViewController(viewController, animated: true)
     }
@@ -292,9 +287,9 @@ class OptionAFlowController: BaseFlowController, OptionAFlowControllerType {
     }
 }
 
-//: Option B Flow
+//: Option B Wireframe
 
-protocol OptionBFlowControllerType: FlowControllerType {
+protocol OptionBWireframeType: WireframeType {
     func finish()
 }
 
@@ -302,10 +297,10 @@ class OptionBViewModel: ViewModelType {
     typealias Input = Int
     typealias Output = Int
     
-    private let flowController: OptionBFlowControllerType
+    private let wireframe: OptionBWireframeType
     
-    init(flowController: OptionBFlowControllerType) {
-        self.flowController = flowController
+    init(wireframe: OptionBWireframeType) {
+        self.wireframe = wireframe
     }
     
     func transform(input: Int) -> Int {
@@ -318,9 +313,9 @@ class OptionBViewController: BaseViewController<OptionBViewModel> {
     override func bind() { }
 }
 
-class OptionBFlowController: BaseFlowController, OptionBFlowControllerType {
+class OptionBWireframe: BaseWireframe, OptionBWireframeType {
     override func start() {
-        let viewModel = OptionBViewModel(flowController: self)
+        let viewModel = OptionBViewModel(wireframe: self)
         let viewController = OptionBViewController(viewModel: viewModel)
         configuration.navigationController?.pushViewController(viewController, animated: true)
     }
