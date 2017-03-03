@@ -18,12 +18,12 @@ protocol ViewType {
     func layout()
 }
 
-struct WireframeConfiguration {
+struct CoordinatorConfiguration {
     let window: UIWindow?
     let navigationController: UINavigationController?
-    let parent: WireframeType?
+    let parent: CoordinatorType?
     
-    init(window: UIWindow? = nil, navigationController: UINavigationController? = nil, parent: WireframeType? = nil) {
+    init(window: UIWindow? = nil, navigationController: UINavigationController? = nil, parent: CoordinatorType? = nil) {
         assert(window != nil || (navigationController != nil && parent != nil))
         self.window = window
         self.navigationController = navigationController
@@ -31,15 +31,15 @@ struct WireframeConfiguration {
     }
 }
 
-protocol WireframeType {
-    init(configuration: WireframeConfiguration)
+protocol CoordinatorType {
+    init(configuration: CoordinatorConfiguration)
     func start()
 }
 
-class BaseWireframe: WireframeType {
-    let configuration: WireframeConfiguration
+class BaseCoordinator: CoordinatorType {
+    let configuration: CoordinatorConfiguration
     
-    required init(configuration: WireframeConfiguration) {
+    required init(configuration: CoordinatorConfiguration) {
         self.configuration = configuration
     }
     
@@ -47,8 +47,12 @@ class BaseWireframe: WireframeType {
         fatalError("start() has not been implemented")
     }
     
-    func makeChildConfiguration() -> WireframeConfiguration {
-        return WireframeConfiguration(navigationController: configuration.navigationController, parent: self)
+    func makeChildConfiguration() -> CoordinatorConfiguration {
+        return CoordinatorConfiguration(navigationController: configuration.navigationController, parent: self)
+    }
+    
+    func makeChildCoordinator<T: CoordinatorType>() -> T {
+        return T.init(configuration: makeChildConfiguration())
     }
 }
 
@@ -79,11 +83,11 @@ class BaseViewController<T: ViewModelType>: UIViewController, ViewType {
     }
 }
 
-//: Main Wireframe
+//: Main Coordinator
 
-class MainWireframe: BaseWireframe {
+class MainCoordinator: BaseCoordinator {
     private var onboarded: Bool = false
-    private var childWireframe: WireframeType?
+    private var child: CoordinatorType?
     
     override func start() {
         let navigationController = UINavigationController()
@@ -91,40 +95,40 @@ class MainWireframe: BaseWireframe {
         configuration.window?.makeKeyAndVisible()
         
         if !onboarded {
-            let onboardingConfiguration = WireframeConfiguration(navigationController: navigationController, parent: self)
-            childWireframe = OnboardingWireframe(configuration: onboardingConfiguration)
-            childWireframe?.start()
+            let onboardingConfiguration = CoordinatorConfiguration(navigationController: navigationController, parent: self)
+            child = OnboardingCoordinator(configuration: onboardingConfiguration)
+            child?.start()
         } else {
-            let tabbedConfiguration = WireframeConfiguration(navigationController: navigationController, parent: self)
-            childWireframe = TabbedWireframe(configuration: tabbedConfiguration)
-            childWireframe?.start()
+            let tabbedConfiguration = CoordinatorConfiguration(navigationController: navigationController, parent: self)
+            child = TabbedCoordinator(configuration: tabbedConfiguration)
+            child?.start()
         }
     }
 }
 
-//: Tabbed Wireframe
+//: Tabbed Coordinator
 
-class TabbedWireframe: BaseWireframe {
+class TabbedCoordinator: BaseCoordinator {
     private let tabBarController = UITabBarController()
-    private var childWireframes: [WireframeType]?
+    private var children: [CoordinatorType]?
     
     override func start() {
         let tabANavigationController = UINavigationController()
-        let tabAConfiguration = WireframeConfiguration(navigationController: tabANavigationController, parent: self)
+        let tabAConfiguration = CoordinatorConfiguration(navigationController: tabANavigationController, parent: self)
         tabBarController.setViewControllers([tabANavigationController], animated: false)
         
-        childWireframes = [TabAWireframe(configuration: tabAConfiguration)]
-        childWireframes?.forEach({ $0.start() })
+        children = [TabACoordinator(configuration: tabAConfiguration)]
+        children?.forEach({ $0.start() })
     }
 }
 
-protocol TabAWireframeType: WireframeType {
+protocol TabACoordinatorType: CoordinatorType {
     func showDetail()
 }
 
-class TabAWireframe: BaseWireframe, TabAWireframeType {
+class TabACoordinator: BaseCoordinator, TabACoordinatorType {
     override func start() {
-        let viewModel = TabAViewModel(wireframe: self)
+        let viewModel = TabAViewModel(coordinator: self)
         let viewController = TabAViewController(viewModel: viewModel)
         configuration.navigationController?.viewControllers = [viewController]
     }
@@ -136,10 +140,10 @@ class TabAViewModel: ViewModelType {
     typealias Input = Int
     typealias Output = Int
     
-    private let wireframe: TabAWireframeType
+    private let coordinator: TabACoordinatorType
     
-    init(wireframe: TabAWireframeType) {
-        self.wireframe = wireframe
+    init(coordinator: TabACoordinatorType) {
+        self.coordinator = coordinator
     }
     
     func transform(input: Int) -> Int {
@@ -152,16 +156,16 @@ class TabAViewController: BaseViewController<TabAViewModel> {
     override func bind() { }
 }
 
-//: Onboarding Wireframe
+//: Onboarding Coordinator
 
 class OnboardingViewModel: ViewModelType {
     typealias Input = Int
     typealias Output = Int
     
-    private let wireframe: OnboardingWireframeType
+    private let coordinator: OnboardingCoordinatorType
     
-    init(wireframe: OnboardingWireframeType) {
-        self.wireframe = wireframe
+    init(coordinator: OnboardingCoordinatorType) {
+        self.coordinator = coordinator
     }
     
     func transform(input: Int) -> Int {
@@ -175,28 +179,28 @@ class OnboardingViewController: BaseViewController<OnboardingViewModel> {
     override func bind() { }
 }
 
-protocol OnboardingWireframeType: WireframeType {
+protocol OnboardingCoordinatorType: CoordinatorType {
     func openOptionPicker()
 }
 
-class OnboardingWireframe: BaseWireframe, OnboardingWireframeType {
-    private var childWireframe: WireframeType?
+class OnboardingCoordinator: BaseCoordinator, OnboardingCoordinatorType {
+    private var child: CoordinatorType?
     
     override func start() {
-        let viewModel = OnboardingViewModel(wireframe: self)
+        let viewModel = OnboardingViewModel(coordinator: self)
         let viewController = OnboardingViewController(viewModel: viewModel)
         configuration.navigationController?.viewControllers = [viewController]
     }
     
     func openOptionPicker() {
-        childWireframe = OptionPickerWireframe(configuration: makeChildConfiguration())
-        childWireframe?.start()
+        child = OptionPickerCoordinator(configuration: makeChildConfiguration())
+        child?.start()
     }
 }
 
-//: Option Picker Wireframe
+//: Option Picker Coordinator
 
-protocol OptionPickerWireframeType: WireframeType {
+protocol OptionPickerCoordinatorType: CoordinatorType {
     func openOptionA()
     func openOptionB()
     func finish()
@@ -206,10 +210,10 @@ class OptionPickerViewModel: ViewModelType {
     typealias Input = Int
     typealias Output = Int
     
-    private let wireframe: OptionPickerWireframeType
+    private let coordinator: OptionPickerCoordinatorType
     
-    init(wireframe: OptionPickerWireframeType) {
-        self.wireframe = wireframe
+    init(coordinator: OptionPickerCoordinatorType) {
+        self.coordinator = coordinator
     }
     
     func transform(input: Int) -> Int {
@@ -222,25 +226,25 @@ class OptionPickerViewController: BaseViewController<OptionPickerViewModel> {
     override func bind() { }
 }
 
-class OptionPickerWireframe: BaseWireframe, OptionPickerWireframeType {
+class OptionPickerCoordinator: BaseCoordinator, OptionPickerCoordinatorType {
     private let navigationController = UINavigationController()
-    private var childWireframe: WireframeType?
+    private var child: CoordinatorType?
     
     override func start() {
-        let viewModel = OptionPickerViewModel(wireframe: self)
+        let viewModel = OptionPickerViewModel(coordinator: self)
         let viewController = OptionPickerViewController(viewModel: viewModel)
         navigationController.viewControllers = [viewController]
         configuration.navigationController?.present(navigationController, animated: true)
     }
     
     func openOptionA() {
-        childWireframe = OptionBWireframe(configuration: makeChildConfiguration())
-        childWireframe?.start()
+        child = OptionBCoordinator(configuration: makeChildConfiguration())
+        child?.start()
     }
     
     func openOptionB() {
-        childWireframe = OptionAWireframe(configuration: makeChildConfiguration())
-        childWireframe?.start()
+        child = OptionACoordinator(configuration: makeChildConfiguration())
+        child?.start()
     }
     
     func finish() {
@@ -249,9 +253,9 @@ class OptionPickerWireframe: BaseWireframe, OptionPickerWireframeType {
 }
 
 
-//: Option A Wireframe
+//: Option A Coordinator
 
-protocol OptionAWireframeType: WireframeType {
+protocol OptionACoordinatorType: CoordinatorType {
     func finish()
 }
 
@@ -259,10 +263,10 @@ class OptionAViewModel: ViewModelType {
     typealias Input = Int
     typealias Output = Int
     
-    private let wireframe: OptionAWireframeType
+    private let coordinator: OptionACoordinatorType
     
-    init(wireframe: OptionAWireframeType) {
-        self.wireframe = wireframe
+    init(coordinator: OptionACoordinatorType) {
+        self.coordinator = coordinator
     }
     
     func transform(input: Int) -> Int {
@@ -275,9 +279,9 @@ class OptionAViewController: BaseViewController<OptionAViewModel> {
     override func bind() { }
 }
 
-class OptionAWireframe: BaseWireframe, OptionAWireframeType {
+class OptionACoordinator: BaseCoordinator, OptionACoordinatorType {
     override func start() {
-        let viewModel = OptionAViewModel(wireframe: self)
+        let viewModel = OptionAViewModel(coordinator: self)
         let viewController = OptionAViewController(viewModel: viewModel)
         configuration.navigationController?.pushViewController(viewController, animated: true)
     }
@@ -287,9 +291,9 @@ class OptionAWireframe: BaseWireframe, OptionAWireframeType {
     }
 }
 
-//: Option B Wireframe
+//: Option B Coordinator
 
-protocol OptionBWireframeType: WireframeType {
+protocol OptionBCoordinatorType: CoordinatorType {
     func finish()
 }
 
@@ -297,10 +301,10 @@ class OptionBViewModel: ViewModelType {
     typealias Input = Int
     typealias Output = Int
     
-    private let wireframe: OptionBWireframeType
+    private let coordinator: OptionBCoordinatorType
     
-    init(wireframe: OptionBWireframeType) {
-        self.wireframe = wireframe
+    init(coordinator: OptionBCoordinatorType) {
+        self.coordinator = coordinator
     }
     
     func transform(input: Int) -> Int {
@@ -313,9 +317,9 @@ class OptionBViewController: BaseViewController<OptionBViewModel> {
     override func bind() { }
 }
 
-class OptionBWireframe: BaseWireframe, OptionBWireframeType {
+class OptionBCoordinator: BaseCoordinator, OptionBCoordinatorType {
     override func start() {
-        let viewModel = OptionBViewModel(wireframe: self)
+        let viewModel = OptionBViewModel(coordinator: self)
         let viewController = OptionBViewController(viewModel: viewModel)
         configuration.navigationController?.pushViewController(viewController, animated: true)
     }
