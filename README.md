@@ -2,7 +2,7 @@
 
 An example MVVM + Flow implementation. 
 
-Model refers to the raw data being used by the ViewModel, this can also include UseCases etc
+Model refers to the raw data being used by the ViewModel, this can also include UseCases, ModelControllers, etc
 
 View renders state of ViewModel with bindings
 
