@@ -13,7 +13,6 @@ protocol ViewType {
     associatedtype ViewModel
     
     var viewModel: ViewModel { get }
-    
     init(viewModel: ViewModel)
     func bind()
     func layout()
@@ -46,7 +45,6 @@ protocol FlowControllerType {
 
 class BaseFlowController: FlowControllerType {
     let configuration: FlowConfiguration
-    var childFlow: FlowControllerType?
     
     required init(configuration: FlowConfiguration) {
         self.configuration = configuration
@@ -90,6 +88,7 @@ class BaseViewController<T: ViewModelType>: UIViewController, ViewType {
 
 class MainFlowController: BaseFlowController {
     private var onboarded: Bool = false
+    private var childFlow: FlowControllerType?
     
     override func start() {
         let navigationController = UINavigationController()
@@ -112,7 +111,7 @@ class MainFlowController: BaseFlowController {
 
 class TabbedFlowController: BaseFlowController {
     private let tabBarController = UITabBarController()
-    var childFlows: [FlowControllerType]?
+    private var childFlows: [FlowControllerType]?
     
     override func start() {
         let tabANavigationController = UINavigationController()
@@ -186,6 +185,8 @@ protocol OnboardingFlowControllerType: FlowControllerType {
 }
 
 class OnboardingFlowController: BaseFlowController, OnboardingFlowControllerType {
+    private var childFlow: FlowControllerType?
+    
     override func start() {
         let viewModel = OnboardingViewModel(flowController: self)
         let viewController = OnboardingViewController(viewModel: viewModel)
@@ -228,6 +229,7 @@ class OptionPickerViewController: BaseViewController<OptionPickerViewModel> {
 
 class OptionPickerFlowController: BaseFlowController, OptionPickerFlowControllerType {
     private let navigationController = UINavigationController()
+    private var childFlow: FlowControllerType?
     
     override func start() {
         let viewModel = OptionPickerViewModel(flowController: self)
